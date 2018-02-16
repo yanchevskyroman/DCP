@@ -10,7 +10,6 @@ frame size for laplacian (supposably 3), regularization parameter (epsilon).*/
 enum param {
 	WINDOW_SIZE,
 	PERCENT,
-	PIXEL_NUM,
 	OMEGA,
 	LAPLACE_WINDOW_SIZE,
 	EPSILON,
@@ -23,6 +22,7 @@ enum image_data_type {
 	RADIANCE,
 	AIRLIGHT,
 	TRANSMISSION,
+	DARK,
 };
 
 

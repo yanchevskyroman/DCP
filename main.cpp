@@ -17,7 +17,7 @@ int main(int argc, char** argv) {
 	string img = "";
 	string img_path = directory;
 	string file_name_to_create;
-	Mat Image, Transmission, Radiance, Airlight;
+	Mat Image, Transmission, Radiance, Airlight, DarkChannel;
 	directory += "\\*.*";
 	hFind = FindFirstFile(directory.c_str(), &data);
 	if (hFind == INVALID_HANDLE_VALUE) {

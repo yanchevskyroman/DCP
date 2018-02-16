@@ -4,98 +4,6 @@
 //#include "Debug.h"//DEBUG//
 
 
-Mat Dark_Channel_Extractor(Mat image, int frame_size) {
-	Mat Channels[3];
-	Mat Patch[3];
-	Mat Padded_Img;
-	double Minimal_pixel_per_channel[3];
-	if (frame_size % 2 == 0) {//Make frame odd-sized for symmetry purposes
-		frame_size--;
-	}
-	int center_of_frame = ((frame_size + 1) / 2) - 1;
-	Mat dark_channel;
-	int i, j;
-
-	//Pad the image
-	copyMakeBorder(image, Padded_Img, center_of_frame, center_of_frame, center_of_frame, center_of_frame, BORDER_CONSTANT, Scalar(255, 255, 255));
-	Mat Padded_dark_channel(Padded_Img.size(), CV_8UC1, Scalar(255));
-	split(Padded_Img, Channels);
-
-	//Find minimal pixel among RGB channels
-	for (j = center_of_frame; j < Padded_Img.rows - center_of_frame; j++) {
-		for (i = center_of_frame; i < Padded_Img.cols - center_of_frame; i++) {
-			Rect R(i - center_of_frame, j - center_of_frame, frame_size, frame_size);
-			for (int k = 0; k < 3; k++) {
-				Patch[k] = Channels[k](R);
-				minMaxLoc(Patch[k], &Minimal_pixel_per_channel[k], NULL, NULL, NULL);
-			}
-			Padded_dark_channel.at<uchar>(j, i) = (uchar)min(min(Minimal_pixel_per_channel[0], Minimal_pixel_per_channel[1]), Minimal_pixel_per_channel[2]);
-		}
-	}
-
-	//Remove padding
-	Rect padding_remover_frame(center_of_frame, center_of_frame, image.cols, image.rows);
-	dark_channel = Padded_dark_channel(padding_remover_frame);
-
-	return dark_channel;
-}
-
-
-void Airlight_Estimator(Mat image, Mat DarkChannel, int percentage, uchar(*Airlight)[CHANNELS_NUM]) {
-	int image_size = image.cols * image.rows;
-	int num_of_pixels = (int)floor((percentage / (double)100) * image_size);
-	int i = 0, j = 0;
-	float RGB[CHANNELS_NUM] = { 0 };
-	Point * max_location = (Point *)malloc(sizeof(Point)* image_size);
-	for (i; i < num_of_pixels; i++) {
-		minMaxLoc(DarkChannel, NULL, NULL, NULL, &max_location[i]);
-		DarkChannel.at<uchar>(max_location[i]) = (uchar)0;
-	}
-	for (i = 0; i < num_of_pixels; i++) {
-		for (j = 0; j < CHANNELS_NUM; j++) {
-			RGB[j] += (int)image.at<Vec3b>(max_location[i])[j];
-		}
-	}
-	for (j = 0; j < CHANNELS_NUM; j++) {
-		RGB[j] = ceil(RGB[j] / num_of_pixels);
-		(*Airlight)[j] = (uchar)RGB[j];
-	}
-	free(max_location);
-	return;
-}
-
-
-Mat Dark_Channel_Normalizer(Mat Image, uchar * Airlight, int frame_size) {
-	Mat Image_channels[CHANNELS_NUM];
-	Mat temp_channels[CHANNELS_NUM];
-	Mat Normalize_image;
-	Mat dark_channel_normalized;
-	Mat temp(Image.size(), CV_8UC3, Scalar(0, 0, 0));
-	vector<Mat> channels_vector;
-	int i, j, k;
-	split(Image, Image_channels);
-	split(temp, temp_channels);
-	for (k = 0; k < 3; k++) {
-		for (i = 0; i < Image_channels[0].rows; i++) {
-			for (j = 0; j < Image_channels[0].cols; j++) {
-				temp_channels[k].at<uchar>(i, j) = min(255, (int)((float)255 * ((float)Image_channels[k].at<uchar>(i, j)) / (float)Airlight[k]));
-			}
-		}
-	}
-	for (i = 0; i < CHANNELS_NUM; i++) {
-		channels_vector.push_back(temp_channels[i]);
-	}
-	merge(channels_vector, Normalize_image);
-	dark_channel_normalized = Dark_Channel_Extractor(Normalize_image, frame_size);
-	return dark_channel_normalized;
-}
-
-
-Mat Transmision_Extractor(Mat Image, uchar * Airlight, int frame_size, double omega) {
-	Mat dark_channel_normalized = Dark_Channel_Normalizer(Image, Airlight, frame_size);
-	Mat ones(dark_channel_normalized.size(), CV_8UC1, Scalar(255));
-	return ones - omega*dark_channel_normalized;
-}
 
 
 string generate_name(string output, char * image_name, int image_data_type, int iteration) {
@@ -160,6 +68,98 @@ bool Parameters_list_array(ifstream * infile, double **parameters) {
 	return true;
 }
 
+Mat Dark_Channel_Extractor(Mat image, int frame_size) {
+	Mat Channels[3];
+	Mat Patch[3];
+	Mat Padded_Img;
+	double Minimal_pixel_per_channel[3];
+	if (frame_size % 2 == 0) {//Make frame odd-sized for symmetry purposes
+		frame_size--;
+	}
+	int center_of_frame = ((frame_size + 1) / 2) - 1;
+	Mat dark_channel;
+	int i, j;
+
+	//Pad the image
+	copyMakeBorder(image, Padded_Img, center_of_frame, center_of_frame, center_of_frame, center_of_frame, BORDER_CONSTANT, Scalar(255, 255, 255));
+	Mat Padded_dark_channel(Padded_Img.size(), CV_8UC1, Scalar(255));
+	split(Padded_Img, Channels);
+
+	//Find minimal pixel among RGB channels
+	for (j = center_of_frame; j < Padded_Img.rows - center_of_frame; j++) {
+		for (i = center_of_frame; i < Padded_Img.cols - center_of_frame; i++) {
+			Rect R(i - center_of_frame, j - center_of_frame, frame_size, frame_size);
+			for (int k = 0; k < 3; k++) {
+				Patch[k] = Channels[k](R);
+				minMaxLoc(Patch[k], &Minimal_pixel_per_channel[k], NULL, NULL, NULL);
+			}
+			Padded_dark_channel.at<uchar>(j, i) = (uchar)min(min(Minimal_pixel_per_channel[0], Minimal_pixel_per_channel[1]), Minimal_pixel_per_channel[2]);
+		}
+	}
+
+	//Remove padding
+	Rect padding_remover_frame(center_of_frame, center_of_frame, image.cols, image.rows);
+	dark_channel = Padded_dark_channel(padding_remover_frame);
+	return dark_channel;
+}
+
+
+void Airlight_Estimator(Mat image, Mat DarkChannel, int percentage, uchar(*Airlight)[CHANNELS_NUM]) {
+	int image_size = image.cols * image.rows;
+	int num_of_pixels = (int)floor((percentage / (double)100) * image_size);
+	int i = 0, j = 0;
+	float RGB[CHANNELS_NUM] = { 0 };
+	Point * max_location = (Point *)malloc(sizeof(Point)* image_size);
+	for (i; i < num_of_pixels; i++) {
+		minMaxLoc(DarkChannel, NULL, NULL, NULL, &max_location[i]);
+		DarkChannel.at<uchar>(max_location[i]) = (uchar)0;
+	}
+	for (i = 0; i < num_of_pixels; i++) {
+		for (j = 0; j < CHANNELS_NUM; j++) {
+			RGB[j] += (int)image.at<Vec3b>(max_location[i])[j];
+		}
+	}
+	for (j = 0; j < CHANNELS_NUM; j++) {
+		RGB[j] = ceil(RGB[j] / num_of_pixels);
+		(*Airlight)[j] = (uchar)RGB[j];
+	}
+	free(max_location);
+	return;
+}
+
+
+Mat Dark_Channel_Normalizer(Mat Image, uchar * Airlight, int frame_size) {
+	Mat Image_channels[CHANNELS_NUM];
+	Mat temp_channels[CHANNELS_NUM];
+	Mat Normalize_image;
+	Mat dark_channel_normalized;
+	Mat temp(Image.size(), CV_8UC3, Scalar(0, 0, 0));
+	vector<Mat> channels_vector;
+	int i, j, k;
+	split(Image, Image_channels);
+	split(temp, temp_channels);
+	for (k = 0; k < 3; k++) {
+		for (i = 0; i < Image_channels[0].rows; i++) {
+			for (j = 0; j < Image_channels[0].cols; j++) {
+				temp_channels[k].at<uchar>(i, j) = min(255, (int)((float)255 * ((float)Image_channels[k].at<uchar>(i, j)) / (float)Airlight[k]));
+			}
+		}
+	}
+	for (i = 0; i < CHANNELS_NUM; i++) {
+		channels_vector.push_back(temp_channels[i]);
+	}
+	merge(channels_vector, Normalize_image);
+	dark_channel_normalized = Dark_Channel_Extractor(Normalize_image, frame_size);
+	return dark_channel_normalized;
+}
+
+
+Mat Transmision_Extractor(Mat Image, uchar * Airlight, int frame_size, double omega) {
+	Mat dark_channel_normalized = Dark_Channel_Normalizer(Image, Airlight, frame_size);
+	Mat ones(dark_channel_normalized.size(), CV_8UC1, Scalar(255));
+	return ones - omega*dark_channel_normalized;
+}
+
 
 Mat Get_Radiance(Mat Image, uchar * Airlight, Mat Transmission, double t0) {
 	int i, j, k;
@@ -212,9 +212,9 @@ Mat Form_Airlight_Mat(uchar *Airlight_Array, int width, int height) {
 
 
 void Dehaze(Mat Image, char * image_name, double * parameters, Mat *Transmission, Mat *Radiance, Mat *Airlight) {
-	Mat dark_channel = Dark_Channel_Extractor(Image, (int)parameters[WINDOW_SIZE]);
+	Mat DarkChannel = Dark_Channel_Extractor(Image, (int)parameters[WINDOW_SIZE]);
 	uchar Airlight_RGB[CHANNELS_NUM] = { 0,0,0 };
-	Airlight_Estimator(Image, dark_channel, (int)parameters[PERCENT]/*, (int)parameters[PIXEL_NUM]*/, &Airlight_RGB);
+	Airlight_Estimator(Image, DarkChannel, (int)parameters[PERCENT], &Airlight_RGB);
 	*Transmission = Transmision_Extractor(Image, Airlight_RGB, (int)parameters[WINDOW_SIZE], parameters[OMEGA]);
 	*Transmission = SoftMatting(*Transmission, Image, (int)parameters[LAPLACE_WINDOW_SIZE], parameters[EPSILON], parameters[LAMBDA]);
 	*Radiance = Get_Radiance(Image, Airlight_RGB, *Transmission, parameters[T0]);
